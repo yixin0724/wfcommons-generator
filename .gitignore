@@ -1,0 +1,13 @@
+.venv/
+.idea/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+data/wfcommons/
+data/wfcommons_custom/
