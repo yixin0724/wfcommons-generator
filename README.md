@@ -6,8 +6,9 @@
 
 ## 功能特点
 
-- 支持 `montage`、`epigenomics`、`seismology`、`genome` 四类 WfCommons recipe。
+- 支持 `montage`、`epigenomics`、`seismology`、`genome`、`cycles`、`soykb`、`srasearch` 七类 WfCommons recipe。
 - 支持按工作流类型、请求任务规模、每个规模实例数量批量生成 JSON。
+- 支持 WfCommons 官方的 runtime、输入文件大小、输出文件大小缩放参数，以及基础图排除参数。
 - 使用稳定随机种子，相同参数可以复现同一路径下的工作流实例。
 - 核心生成逻辑放在 `wfcommons_generator/` 包中，命令行入口放在 `scripts/` 目录中。
 - 默认将生成结果写入 `data/wfcommons/`，生成产物与源码分离。
@@ -40,9 +41,12 @@ montage       天文图像拼接类工作流
 epigenomics   生物信息/表观基因组类工作流
 seismology    地震数据处理类工作流
 genome        基因组处理类工作流
+cycles        Cycles 工作流
+soykb         SoyKB 生物信息类工作流
+srasearch     SRA Search 工作流
 ```
 
-默认请求规模：
+WfCommons 不是只支持固定规模。`--sizes` 可以传入任意整数规模，但必须大于等于对应 recipe 的最低请求规模。常用建议规模可以使用：
 
 ```text
 100
@@ -51,13 +55,33 @@ genome        基因组处理类工作流
 1000
 ```
 
+其中 `100` 不适用于最低规模大于 100 的 recipe，例如 `seismology`。为了让默认命令对全部支持 recipe 都可用，本项目默认规模为：
+
+```text
+300
+500
+1000
+```
+
 默认每个工作流类型、每个规模生成 5 个实例，所以完整默认数据集为：
 
 ```text
-4 workflow types * 4 sizes * 5 instances = 80 JSON files
+7 workflow types * 3 sizes * 5 instances = 105 JSON files
 ```
 
-注意：`--sizes` 表示请求任务数。WfCommons 可能因为 recipe 基础图约束产生略有差异的实际任务数，命令行输出会同时显示 `requested_tasks` 和 `actual_tasks`。
+注意：`--sizes` 表示请求任务数。WfCommons 可能因为 recipe 结构约束产生略有差异的实际任务数，命令行输出会同时显示 `requested_tasks` 和 `actual_tasks`。如果请求规模低于下表中的最低下限，程序会直接报错，不会自动放大规模生成。
+
+下表中的最低请求规模来自当前项目依赖的 WfCommons 1.4 recipe 基础图限制；它不是可生成规模的固定枚举，只是每类 recipe 的请求下限。
+
+| workflow type | 最低请求规模 |
+|---|---:|
+| `cycles` | 69 |
+| `epigenomics` | 43 |
+| `genome` | 54 |
+| `montage` | 60 |
+| `seismology` | 103 |
+| `soykb` | 98 |
+| `srasearch` | 24 |
 
 ## 输出结构
 
@@ -116,6 +140,12 @@ python -m venv .venv
 .\.venv\Scripts\python.exe scripts\generate_wfcommons_instances.py --workflow-types montage genome --sizes 100 500 1000
 ```
 
+生成新增的 `cycles`、`soykb`、`srasearch`：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_wfcommons_instances.py --workflow-types cycles soykb srasearch --sizes 100 300 --instances-per-size 1
+```
+
 输出到自定义目录：
 
 ```powershell
@@ -126,6 +156,12 @@ python -m venv .venv
 
 ```powershell
 .\.venv\Scripts\python.exe scripts\generate_wfcommons_instances.py --seed-base 20260516
+```
+
+使用 WfCommons 官方缩放参数：
+
+```powershell
+.\.venv\Scripts\python.exe scripts\generate_wfcommons_instances.py --workflow-types montage --sizes 300 --runtime-factor 1.5 --input-file-size-factor 2.0 --output-file-size-factor 0.5
 ```
 
 安装为可编辑包后，也可以直接使用命令名：
@@ -141,18 +177,33 @@ python -m venv .venv
     输出根目录。默认 data/wfcommons。
 
 --workflow-types
-    要生成的工作流类型列表。可选 montage epigenomics seismology genome。
+    要生成的工作流类型列表。可选 cycles epigenomics genome montage seismology soykb srasearch。
     默认生成全部类型。
 
 --sizes
-    请求任务规模列表。默认 100 300 500 1000。
+    请求任务规模列表。可传任意大于等于对应 recipe 最低下限的整数。
+    默认 300 500 1000。
 
 --instances-per-size
     每个 workflow type 和 size 组合生成几个实例。默认 5。
 
 --seed-base
     随机种子基准。默认 20260516。
+
+--exclude-graphs
+    WfCommons 基础图排除列表。通常无需设置。
+
+--runtime-factor
+    WfCommons runtime 缩放因子，必须大于 0。默认 1.0。
+
+--input-file-size-factor
+    WfCommons 输入文件大小缩放因子，必须大于 0。默认 1.0。
+
+--output-file-size-factor
+    WfCommons 输出文件大小缩放因子，必须大于 0。默认 1.0。
 ```
+
+这些参数对应 WfCommons 官方 `from_num_tasks` 接口中的 `exclude_graphs`、`runtime_factor`、`input_file_size_factor` 和 `output_file_size_factor`。
 
 每个实例的实际 seed 计算方式：
 
@@ -204,22 +255,3 @@ for item in generate_wfcommons_instances(
 ```
 
 GitHub Actions 会在 Python 3.10、3.11、3.12 上运行测试。
-
-## 发布到 GitHub
-
-目标仓库：
-
-```text
-git@github.com:yixin0724/wfcommons-generator.git
-```
-
-首次推送可以使用：
-
-```powershell
-git init
-git branch -M main
-git remote add origin git@github.com:yixin0724/wfcommons-generator.git
-git add .
-git commit -m "Initial wfcommons generator"
-git push -u origin main
-```

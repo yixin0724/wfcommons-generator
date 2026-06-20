@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "wfcommons",
+    "wfcommons==1.4",
 ]
 keywords = ["workflow", "wfcommons", "wfformat", "workflow-generation"]
 classifiers = [
