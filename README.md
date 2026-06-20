@@ -213,6 +213,28 @@ seed = seed_base + stable_offset(workflow_type) + requested_size * 1000 + instan
 
 相同参数重复运行，会覆盖同路径文件，并生成可复现的实例。
 
+## 同一规模下多个实例的区别
+
+`--instances-per-size` 控制每个 `workflow type + requested size` 组合生成多少个实例。默认值是 5，所以同一个组合会生成：
+
+```text
+{workflow_type}_{requested_size}_000.json
+{workflow_type}_{requested_size}_001.json
+{workflow_type}_{requested_size}_002.json
+{workflow_type}_{requested_size}_003.json
+{workflow_type}_{requested_size}_004.json
+```
+
+文件名最后三位是 `instance_id`。同一类工作流、同一请求规模下，不同 `instance_id` 会得到不同 seed：
+
+```text
+instance_id = 0 -> seed = seed_base + stable_offset + requested_size * 1000 + 0
+instance_id = 1 -> seed = seed_base + stable_offset + requested_size * 1000 + 1
+instance_id = 2 -> seed = seed_base + stable_offset + requested_size * 1000 + 2
+```
+
+不同 seed 会影响 WfCommons 生成过程中的随机部分，所以这些实例属于同一类、同一规模的不同变体。它们可能在实际任务数、DAG 依赖结构、任务父子关系、文件数量、文件大小和任务 runtime 上存在差异。这样可以避免实验只依赖单个固定图，让同类同规模下的评估结果更稳健。
+
 ## 检查生成结果
 
 查看一个 JSON 的任务数、边数、文件数和部分任务/边：
